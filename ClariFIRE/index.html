@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en" x-data="app()" x-init="init()" :class="{'dark': dark}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ClariFire</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Alpine.js (lightweight reactivity) -->
+  <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  <style>
+    .hero-bg {
+      background:
+        radial-gradient(1200px 600px at 80% -10%, rgba(255,149,0,.12), transparent 50%),
+        radial-gradient(1000px 500px at 20% -10%, rgba(14,165,233,.12), transparent 50%);
+    }
+    .shimmer {
+      background: linear-gradient(90deg, rgba(255,255,255,.0) 0%, rgba(255,255,255,.35) 50%, rgba(255,255,255,.0) 100%);
+      background-size: 200% 100%;
+      animation: shimmer 2.4s infinite;
+    }
+    @keyframes shimmer { 0% {background-position: 200% 0} 100% {background-position: -200% 0} }
+    .scrollbar-thin::-webkit-scrollbar{height:8px;width:8px}
+    .scrollbar-thin::-webkit-scrollbar-thumb{background:rgba(100,116,139,.35);border-radius:6px}
+    .dark .card { background-color:#0b1220; border-color:#1f2937 }
+  </style>
+</head>
+
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+  <!-- Header -->
+  <header class="sticky top-0 z-20 border-b border-slate-200/70 dark:border-slate-800/80 backdrop-blur bg-white/70 dark:bg-slate-900/60">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-12 h-12 rounded-3xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center shadow-sm overflow-hidden">
+          <img src="FIXED_PNG/clariFIRE.png" alt="ClariFire icon" class="w-10 h-10 object-contain" />
+        </div>
+        <div>
+          <h1 class="font-bold tracking-tight text-2xl">ClariFIRE</h1>
+          <div class="text-s text-slate-500 dark:text-slate-400">Hazard • Exposure • SVI • Risk • Explainability</div>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                @click="dark = !dark; localStorage.setItem('wre.dark', dark ? '1':'0')">
+          <span x-show="!dark">🌙 Dark</span><span x-show="dark">☀️ Light</span>
+        </button>
+        <button class="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                @click="showHelp=true">?</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero-bg">
+    <div class="max-w-7xl mx-auto px-4 pt-8 pb-4">
+      <div class="relative overflow-hidden rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950">
+        <div class="absolute inset-0 shimmer opacity-10 pointer-events-none"></div>
+        <div class="p-6 md:p-8">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div class="max-w-2xl">
+              <h2 class="text-2xl md:text-2xl font-semibold tracking-tight">Explore fire seasons 2015–2025</h2>
+              <p class="text-sm md:text-base text-slate-600 dark:text-slate-400 mt-2">
+                Open the interactive Folium map per season. Compare hazard, exposure, social vulnerability, and SHAP explainability overlays.
+              </p>
+            </div>
+            <div class="flex gap-2">
+              <a href="#seasons" class="px-4 py-2 rounded-xl bg-orange-600 text-white hover:bg-orange-500 shadow">Browse seasons</a>
+              <a :href="firstAvailable()?.mapHref || '#'"
+                 :class="['px-4 py-2 rounded-xl border', firstAvailable() ? 'border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800' : 'border-slate-200 text-slate-400 cursor-not-allowed']"
+                 target="_blank">Open latest</a>
+            </div>
+          </div>
+
+          <!-- Controls -->
+          <div class="mt-6 grid gap-3 md:grid-cols-4">
+            <div class="md:col-span-2">
+              <label class="text-xs text-slate-500">Search</label>
+              <input id="search" x-model="q" placeholder="Search year or notes… (press / to focus)"
+                     class="w-full mt-1 px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900" />
+            </div>
+            <div>
+              <label class="text-xs text-slate-500">Filter</label>
+              <select x-model="status"
+                      class="w-full mt-1 px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
+                <option value="all">All</option>
+                <option value="available">Available</option>
+                <option value="processing">Processing</option>
+                <option value="coming-soon">Coming soon</option>
+              </select>
+            </div>
+            <div class="flex gap-2 items-end">
+              <div class="flex-1">
+                <label class="text-xs text-slate-500">Sort</label>
+                <select x-model="sortDir"
+                        class="w-full mt-1 px-3 py-2 text-sm rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900">
+                  <option value="desc">Newest → Oldest</option>
+                  <option value="asc">Oldest → Newest</option>
+                </select>
+              </div>
+              <button class="mt-6 px-2.5 py-2 rounded-xl border border-slate-300 dark:border-slate-700"
+                      @click="view = (view === 'grid' ? 'list' : 'grid')" x-text="view==='grid' ? 'List' : 'Grid'"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Seasons -->
+  <main id="seasons" class="max-w-7xl mx-auto px-4 py-8">
+    <div :class="view==='grid' ? 'grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'space-y-3'">
+      <template x-for="s in filtered()" :key="s.year">
+        <div class="card rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm p-4 flex flex-col justify-between">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-8 h-8 rounded-lg bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center">
+                <span class="text-orange-600 dark:text-orange-400 font-semibold" x-text="String(s.year).slice(2)"></span>
+              </div>
+              <h3 class="text-lg font-semibold" x-text="s.year"></h3>
+            </div>
+            <span class="text-xs px-2 py-1 rounded-full"
+                  :class="pillClass(s.status)"
+                  x-text="meta[s.status].label"></span>
+          </div>
+
+          <p class="text-sm text-slate-600 dark:text-slate-400 mt-1" x-text="s.notes || ''"></p>
+
+          <!-- Thumbnails -->
+          <div class="mt-3 flex gap-2 overflow-x-auto scrollbar-thin" x-show="s.explainImgs?.length">
+            <template x-for="(src,i) in s.explainImgs" :key="i">
+              <a :href="src" target="_blank" class="shrink-0">
+                <img :src="src" alt="Explainability" class="h-16 w-auto rounded-md border border-slate-200 dark:border-slate-700" />
+              </a>
+            </template>
+          </div>
+
+          <div class="mt-4 flex items-center gap-2">
+            <button class="px-3 py-1.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    :disabled="s.status!=='available' || !s.mapHref"
+                    @click="openPreview(s)">
+              Preview
+            </button>
+            <a class="px-3 py-1.5 text-sm rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
+               :class="{'pointer-events-none opacity-40': s.status!=='available' || !s.mapHref}"
+               :href="s.mapHref || '#'" target="_blank" rel="noreferrer">
+              Open map ↗
+            </a>
+          </div>
+        </div>
+      </template>
+    </div>
+  </main>
+
+  <!-- Preview Modal -->
+  <div x-show="modal" x-transition.opacity class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" @keydown.escape.window="modal=false">
+    <div class="w-full max-w-6xl h-[80vh] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 relative">
+      <div class="absolute inset-x-0 top-0 p-3 flex items-center justify-between bg-white/80 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 backdrop-blur">
+        <div class="text-sm font-medium" x-text="active?.year ? 'Season ' + active.year : 'Preview'"></div>
+        <div class="flex items-center gap-2">
+          <a class="text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700"
+             :href="active?.mapHref || '#'" target="_blank">Open in new tab ↗</a>
+          <button class="text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700" @click="modal=false">Close</button>
+        </div>
+      </div>
+      <iframe x-show="active?.mapHref" :src="active.mapHref" class="w-full h-full"></iframe>
+      <div x-show="!active?.mapHref" class="w-full h-full flex items-center justify-center text-slate-500">No map available.</div>
+    </div>
+  </div>
+
+  <!-- Help Modal -->
+  <div x-show="showHelp" x-transition.opacity class="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4" @keydown.escape.window="showHelp=false">
+    <div class="w-full max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+      <h3 class="font-semibold mb-2">Shortcuts & Tips</h3>
+      <ul class="list-disc pl-5 text-sm text-slate-600 dark:text-slate-400 space-y-1">
+        <li><kbd class="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">/</kbd> focus search</li>
+        <li><kbd class="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded">?</kbd> toggle this help</li>
+        <li>Click <strong>Preview</strong> to open the Folium map inline; use <strong>Open map</strong> to launch a new tab.</li>
+        <li>Use the <strong>Filter</strong> and <strong>Sort</strong> controls to find a season fast.</li>
+      </ul>
+      <div class="mt-4 text-right">
+        <button class="text-xs px-2 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700" @click="showHelp=false">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script>
+    function app() {
+      const basePath = '.';
+      const seasons = [
+        { year: 2025, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2025.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2025_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2025_CA.png`,
+        ] },
+        { year: 2024, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2024.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2024_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2024_CA.png`,
+        ] },
+        { year: 2023, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2023.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2023_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2023_CA.png`,
+        ] },
+        { year: 2022, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2022.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2022_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2022_CA.png`,
+        ] },
+        { year: 2021, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2021.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2021_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2021_CA.png`,
+        ] },
+       { year: 2020, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2020.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2020_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2020_CA.png`,
+        ] },
+        { year: 2019, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2019.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2019_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2019_CA.png`,
+        ] },
+        { year: 2018, status: 'available', mapHref: `${basePath}/../ClariFIRE/wildfire_risk_suite_2018.html`, notes: 'Pilot season ready.', explainImgs: [
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_beeswarm_model5_2018_CA.png                                                                                                                                                  `,
+          `${basePath}/../ClariFIRE/FIXED_PNG/shap_global_bar_model5_2018_CA.png`,
+        ] },
+        { year: 2017, status: 'coming-soon' },
+        { year: 2016, status: 'coming-soon' },
+        { year: 2015, status: 'coming-soon' },
+      ];
+
+      const meta = {
+        'available': { label: 'Available', pill: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' },
+        'processing': { label: 'Processing', pill: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' },
+        'coming-soon': { label: 'Coming soon', pill: 'bg-slate-100 text-slate-700 dark:bg-slate-800/70 dark:text-slate-300' },
+      };
+
+      return {
+        // state
+        dark: false,
+        q: '',
+        status: 'all',
+        sortDir: 'desc',
+        view: 'grid',
+        modal: false,
+        active: null,
+        showHelp: false,
+        meta,
+        seasons,
+
+        init() {
+          // theme
+          this.dark = (localStorage.getItem('wre.dark') === '1');
+          // shortcuts
+          window.addEventListener('keydown', (e) => {
+            if (e.key === '/') { e.preventDefault(); document.getElementById('search').focus(); }
+            if (e.key === '?') { e.preventDefault(); this.showHelp = !this.showHelp; }
+          });
+        },
+
+        pillClass(st) { return this.meta[st]?.pill || ''; },
+
+        filtered() {
+          let arr = [...this.seasons];
+          // search filter
+          const q = this.q.trim().toLowerCase();
+          if (q) arr = arr.filter(s => String(s.year).includes(q) || (s.notes || '').toLowerCase().includes(q));
+          // status filter
+          if (this.status !== 'all') arr = arr.filter(s => s.status === this.status);
+          // sort
+          arr.sort((a,b) => this.sortDir === 'desc' ? (b.year - a.year) : (a.year - b.year));
+          return arr;
+        },
+
+        firstAvailable() {
+          return [...this.seasons].sort((a,b)=>b.year-a.year).find(s => s.status==='available' && s.mapHref);
+        },
+
+        openPreview(s) {
+          if (s.status !== 'available' || !s.mapHref) return;
+          this.active = s;
+          this.modal = true;
+        },
+      }
+    }
+  </script>
+</body>
+</html>
